@@ -51,7 +51,12 @@ Students struggle to manage their academic life because notes, tasks, deadlines,
 
 #### What Makes Trackademia Different?
 
-Trackademia is meant to be used by students. Students can organize all their notes, homework, schedules, deadlines, and papers in one single organized place instead of jumping from one application to another. It makes school easier, saving time and making things less stressful.
+All-in-One Platform – Organizes notes, homework, schedules, deadlines, and school papers in one place.
+Saves Time – Reduces the need to switch between multiple apps.
+Less Stress – Keeps school tasks organized and easy to manage.
+Speech-to-Text Feature – Students can speak instead of typing, and the app automatically converts their voice into written text.
+Unique Advantage – Makes note-taking faster, easier, and more convenient, especially during lectures.
+Student-Focused – Designed to make everyday schoolwork more organized and manageable.
 
 ##### Feasibility Check
 
