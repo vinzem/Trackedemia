@@ -47,8 +47,7 @@ Students struggle to manage their academic life because notes, tasks, deadlines,
 - Skills — Feasible. Use modern web technologies (React, Node.js, Firebase/MongoDB) with a small team of 4 members.
 - Technology — Feasible. Speech-to-text can be integrated using free/affordable APIs like Web Speech API or Google Cloud Speech-to-Text.
 
-###### Core Feature (The One That Must Survive)
-
+###### Core Feature 
 "Unified Workspace with Speech-to-Text"
 
 The platform must allow students to:
