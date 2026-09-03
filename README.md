@@ -51,12 +51,7 @@ Students struggle to manage their academic life because notes, tasks, deadlines,
 
 #### What Makes Trackademia Different?
 
-1.) Student-first design — Built specifically for students, not adapted from general productivity tools
-2.) All-in-one workspace — Notes, tasks, deadlines, schedules, and files in one platform
-3.) Speech-to-text feature — Hands-free note-taking and task creation, perfect for lectures and quick idea capture
-4.) Simple and intuitive— No steep learning curve, focused on what students actually need
-5.) Subject-based organization — Separate workspaces for each subject for easy navigation
-6.) Progress tracking — Monitor assignment and project progress from pending to completed
+Trackademia is meant to be used by students. Students can organize all their notes, homework, schedules, deadlines, and papers in one single organized place instead of jumping from one application to another. It makes school easier, saving time and making things less stressful.
 
 ##### Feasibility Check
 
