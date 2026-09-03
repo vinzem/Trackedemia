@@ -17,16 +17,27 @@ Students struggle to manage their academic life because notes, tasks, deadlines,
 -High School Students
 
 -Senior High School Students
+
 -College and University Students
+
 -Graduate Students
+
 -Students Taking Online or Hybrid Classes
+
 -Working Students
+
 -Students Managing Multiple Courses
+
 -Students with Multiple Academic Requirements
+
 -Students Involved in Group Projects
+
 -Students Who Prefer Voice-Based Tools
+
 -Students Who Struggle with Organization
+
 -Students Seeking Better Academic Productivity
+
 
 ### Existing Solutions: 
 
