@@ -15,7 +15,6 @@ Students struggle to manage their academic life because notes, tasks, deadlines,
 ## Target Users
 
 -High School Students
-
 -Senior High School Students
 
 -College and University Students
