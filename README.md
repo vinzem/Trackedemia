@@ -4,7 +4,7 @@ Trackademia is a Notion-style workspace built around voice; you speak your notes
 
 ## Problem
 
-Students struggle to manage their academic life because notes, tasks, deadlines, schedules, and files are scattered across multiple apps. They use one app for notes, another for calendars, another for to-do lists, and separate folders for school files. This fragmentation leads to:
+Students struggle to manage their academic life because notes, tasks, deadlines, schedules, and files are scattered across multiple apps. They use one app for notes, another for calendars, another for to-do lists, and separate folders for school files. This fragmentation leads to...
 
 - Forgotten deadlines and missed requirements
 - Wasted time switching between different platforms
