@@ -1,0 +1,79 @@
+generator client { provider = "prisma-client-js" }
+datasource db { provider = "postgresql"; url = env("DATABASE_URL") }
+
+model User {
+  id String @id @default(cuid())
+  name String
+  email String @unique
+  image String?
+  googleId String @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  notes Note[]
+  categories Category[]
+  reminders Reminder[]
+  events CalendarEvent[]
+}
+model Category {
+  id String @id @default(cuid())
+  name String
+  color String @default("#7B8BA5")
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notes Note[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([userId, name])
+  @@index([userId])
+}
+model Note {
+  id String @id @default(cuid())
+  title String
+  content String @default("")
+  categoryId String?
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reminders Reminder[]
+  events CalendarEvent[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([userId, updatedAt])
+  @@index([categoryId])
+}
+// First-party calendar event. Deleting it cascades to its reminder.
+model CalendarEvent {
+  id String @id @default(cuid())
+  title String
+  date String   // YYYY-MM-DD
+  time String   // HH:mm
+  timeZone String @default("UTC")
+  noteId String?
+  note Note? @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  idempotencyKey String?
+  reminder Reminder?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([userId, idempotencyKey])
+  @@index([userId, date])
+}
+model Reminder {
+  id String @id @default(cuid())
+  title String
+  date String
+  time String
+  timeZone String @default("UTC")
+  noteId String?
+  note Note? @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  calendarEventId String? @unique
+  calendarEvent CalendarEvent? @relation(fields: [calendarEventId], references: [id], onDelete: Cascade)
+  status String @default("scheduled")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([userId, date])
+  @@index([noteId])
+}

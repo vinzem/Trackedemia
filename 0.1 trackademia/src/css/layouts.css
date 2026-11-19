@@ -1,0 +1,50 @@
+/* Page-level layout: mobile-first shell, desktop sidebar, editor and auth screens. */
+@layer components {
+  .app-shell { @apply min-h-screen; }
+  .app-sidebar { @apply hidden; }
+  .app-main { @apply min-w-0; padding-bottom: calc(96px + var(--safe-bottom)); }
+  .app-navbar {
+    @apply sticky top-0 z-20 flex items-center gap-2 border-b border-line-subtle px-2 backdrop-blur;
+    background: rgba(255, 255, 255, .95);
+    height: var(--navbar-height);
+  }
+  .page { @apply mx-auto w-full max-w-content px-4 py-5 sm:px-6; }
+  .page--narrow { @apply max-w-editor; }
+  .page-header { @apply mb-5 flex flex-wrap items-center justify-between gap-3; }
+  .page-title { @apply text-2xl font-bold tracking-tight; }
+
+  .notes-layout { @apply grid gap-6; }
+  .notes-grid { @apply grid gap-3; }
+
+  .auth-layout { @apply grid min-h-screen; }
+  .auth-hero { @apply hidden; }
+  .auth-panel { @apply mx-auto flex w-full max-w-md flex-col justify-center px-5 py-10; }
+
+  .editor-toolbar {
+    @apply sticky z-10 flex items-center gap-1 border-t border-line-subtle px-2 py-1.5 backdrop-blur;
+    background: rgba(255, 255, 255, .95);
+    bottom: 0; padding-bottom: calc(6px + var(--safe-bottom));
+  }
+
+  @screen sm {
+    .notes-grid { @apply grid-cols-2; }
+  }
+
+  @screen lg {
+    .app-shell { display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); }
+    .app-sidebar { @apply sticky top-0 flex h-screen flex-col gap-1 border-r border-line-subtle bg-surface p-4; }
+    .app-navbar { @apply hidden; }
+    .app-main { padding-bottom: 32px; }
+    .fab { @apply hidden; }
+    .page { @apply px-8 py-8; }
+    .notes-layout--with-panel { grid-template-columns: minmax(0, 1fr) 320px; }
+    .auth-layout { grid-template-columns: 1.1fr 1fr; }
+    .auth-hero { @apply flex flex-col justify-between bg-ink p-12 text-white; }
+    .editor-toolbar { @apply static mt-4 rounded-lg border; }
+  }
+
+  @screen xl {
+    .notes-grid { @apply grid-cols-3; }
+    .notes-layout--with-panel .notes-grid { @apply grid-cols-2; }
+  }
+}
