@@ -31,7 +31,7 @@ describe('server note validation', () => {
 
 describe('server reminder validation', () => {
   it('accepts a complete reminder', () => {
-    expect(reminderCreate.parse(validReminder)).toMatchObject({ ...validReminder, all_day: false, sync: true });
+    expect(reminderCreate.parse(validReminder)).toMatchObject({ ...validReminder, all_day: false });
   });
   it('requires a start time unless all-day', () => {
     expect(reminderCreate.safeParse({ ...validReminder, start_time: null }).success).toBe(false);
@@ -44,7 +44,6 @@ describe('server reminder validation', () => {
     { start_time: '8am' },
     { timezone: 'Not/AZone' },
     { end_date: '2026-11-19' },
-    { calendar_id: '' },
   ])('rejects %o', (patch) => {
     expect(reminderCreate.safeParse({ ...validReminder, ...patch }).success).toBe(false);
   });
@@ -56,12 +55,12 @@ describe('server reminder validation', () => {
 
 describe('client-side form validation', () => {
   it('validates the reminder sheet fields', () => {
-    expect(validateReminderForm({ ...validReminder, calendar_id: 'primary' }).valid).toBe(true);
-    const result = validateReminderForm({ event_title: ' ', start_date: '', start_time: '', timezone: 'Bad/Zone', calendar_id: '' });
+    expect(validateReminderForm(validReminder).valid).toBe(true);
+    const result = validateReminderForm({ event_title: ' ', start_date: '', start_time: '', timezone: 'Bad/Zone' });
     expect(result.valid).toBe(false);
-    expect(Object.keys(result.errors).sort()).toEqual(['calendar_id', 'event_title', 'start_date', 'start_time', 'timezone']);
-    expect(validateReminderForm({ ...validReminder, calendar_id: 'c', end_time: '07:00' }).errors.end_time).toBeTruthy();
-    expect(validateReminderForm({ ...validReminder, calendar_id: 'c', start_time: '', all_day: true }).valid).toBe(true);
+    expect(Object.keys(result.errors).sort()).toEqual(['event_title', 'start_date', 'start_time', 'timezone']);
+    expect(validateReminderForm({ ...validReminder, end_time: '07:00' }).errors.end_time).toBeTruthy();
+    expect(validateReminderForm({ ...validReminder, start_time: '', all_day: true }).valid).toBe(true);
   });
   it('validates note drafts', () => {
     expect(validateNoteDraft({ title: '', content: '' }).valid).toBe(false);

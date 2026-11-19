@@ -19,7 +19,6 @@ export function validateReminderForm(values) {
     else if (values.end_time && TIME_RE.test(values.start_time || '') && values.end_time <= values.start_time) errors.end_time = 'End time must be after the start time.';
   }
   if (!isValidTimezone(values.timezone)) errors.timezone = 'Choose a timezone.';
-  if (!values.calendar_id) errors.calendar_id = 'Choose a Google Calendar.';
   return { valid: Object.keys(errors).length === 0, errors };
 }
 

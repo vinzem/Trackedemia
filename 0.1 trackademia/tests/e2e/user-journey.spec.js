@@ -3,136 +3,171 @@ import { expect, test } from '@playwright/test';
 const API = 'http://localhost:8788';
 const state = async (request) => (await request.get(`${API}/__test/state`)).json();
 
-/** Simulates Google's consent screen: approve and redirect back with a code. */
-async function approveGoogleConsent(page) {
-  await page.route('https://accounts.google.com/**', async (route) => {
-    const url = new URL(route.request().url());
-    const callback = new URL(url.searchParams.get('redirect_uri'));
-    callback.searchParams.set('code', 'good-code');
-    callback.searchParams.set('state', url.searchParams.get('state'));
-    callback.searchParams.set('scope', url.searchParams.get('scope'));
-    await route.fulfill({ status: 302, headers: { location: callback.toString() } });
-  });
-}
-
-test('complete journey: register → connect calendar → note → detect → confirm → edit → delete', async ({ page, request }) => {
+test('create an event from a note, manage it in the first-party calendar, and delete it', async ({ page, request }) => {
   const email = `student-${Date.now()}@example.com`;
 
-  // 1. Register
   await page.goto('/');
   await expect(page).toHaveURL(/\/onboarding/);
+  await expect(page.getByRole('button', { name: /Continue with Google/ })).toHaveCount(0);
+  const signInHeroHeading = await page.locator('.auth-hero .text-4xl').boundingBox();
+  const signInHeroFooter = await page.locator('.auth-hero > p').boundingBox();
   await page.getByRole('tab', { name: 'Create account' }).click();
+  await expect(page.getByRole('button', { name: /Continue with Google/ })).toHaveCount(0);
+  const createHeroHeading = await page.locator('.auth-hero .text-4xl').boundingBox();
+  const createHeroFooter = await page.locator('.auth-hero > p').boundingBox();
+  expect(createHeroHeading.y).toBeCloseTo(signInHeroHeading.y, 0);
+  expect(createHeroFooter.y).toBeCloseTo(signInHeroFooter.y, 0);
   await page.getByLabel('Your name').fill('Naz Student');
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill('trackademia1');
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page).toHaveURL(/\/notes$/);
+  await page.getByRole('button', { name: 'Switch to dark mode' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(23, 23, 23)');
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.getByRole('button', { name: 'Switch to light mode' })).toBeVisible();
   await expect(page.getByText('Your notes will live here')).toBeVisible();
 
-  // 2. Connect Google Calendar (real OAuth flow, consent screen simulated)
-  await approveGoogleConsent(page);
-  await page.getByRole('link', { name: 'Settings' }).first().click();
-  await page.getByRole('button', { name: 'Connect Google Calendar' }).click();
-  await expect(page).toHaveURL(/\/settings/);
-  await expect(page.getByText('Google Calendar connected').first()).toBeVisible();
-  await expect(page.getByText('student@gmail.com')).toBeVisible();
-  await expect(page.locator('#default-calendar')).toHaveValue('primary-cal@example.com');
-
-  // 3. Create a note
   await page.getByRole('link', { name: 'New note' }).first().click();
   await page.getByLabel('Title').fill('Errands');
   await page.getByLabel('Note', { exact: true }).fill('Dentist appointment tomorrow at 10am.\nBuy groceries');
-
-  // 4. Detect + highlight the scheduling expression
   await expect(page.locator('.editor mark')).toHaveText('tomorrow at 10am');
   await expect(page.getByText('1 reminder detected')).toBeVisible();
   await expect(page.locator('[data-status]')).toHaveText(/^Saved/);
 
-  // 5. Review the reminder
-  await page.getByRole('button', { name: /Dentist appointment/ }).click();
-  const sheet = page.getByRole('dialog');
-  await expect(sheet.getByLabel('Event title')).toHaveValue('Dentist appointment');
-  await expect(sheet.getByLabel('Start time')).toHaveValue('10:00');
-  await expect(sheet.getByLabel('Google Calendar')).toHaveValue('primary-cal@example.com');
-
-  // 6. Confirm
-  await sheet.getByRole('button', { name: 'Add to Google Calendar' }).click();
-  await expect(sheet).toBeHidden();
-  const success = page.locator('[data-success]');
-  await expect(success.getByText('Added to Google Calendar')).toBeVisible();
-  await expect(success.getByText('Student')).toBeVisible();
-  await expect(success.getByRole('link', { name: 'Open in Google Calendar' })).toHaveAttribute('href', /google\.com\/calendar/);
-
-  // 7. Verify the event really exists in (fake) Google Calendar, linked in the DB
   let snapshot = await state(request);
   expect(snapshot.events).toHaveLength(1);
-  expect(snapshot.events[0]).toMatchObject({ summary: 'Dentist appointment', start: { timeZone: 'Asia/Manila' } });
-  expect(snapshot.events[0].start.dateTime).toMatch(/T10:00:00$/);
-  expect(snapshot.reminders[0]).toMatchObject({ status: 'synced', google_event_id: snapshot.events[0].id, note_id: snapshot.notes[0].id });
+  expect(snapshot.events[0]).toMatchObject({ event_title: 'Dentist appointment', note_id: snapshot.notes[0].id, status: 'pending' });
 
-  // Duplicate prevention: the chip now shows the event is already on the calendar
-  await expect(page.getByRole('button', { name: /Dentist appointment.*On calendar/ })).toBeVisible();
+  await page.getByRole('button', { name: /Dentist appointment, on calendar; open calendar/ }).click();
+  await expect(page).toHaveURL(/\/calendar$/);
+  await expect(page.getByRole('heading', { name: /20\d\d/ })).toBeVisible();
+  const calendarSurface = page.locator('[data-calendar-surface]');
+  const headingText = await page.getByRole('heading', { name: /20\d\d/ }).textContent();
+  const displayedYear = Number(headingText.match(/20\d{2}/)[0]);
+  await page.getByRole('button', { name: /choose month and year/ }).click();
+  await expect(page.getByRole('button', { name: `January ${displayedYear}` })).toBeVisible();
+  let surfaceBox = await calendarSurface.boundingBox();
+  await page.mouse.move(surfaceBox.x + 100, surfaceBox.y + 100);
+  await page.mouse.wheel(0, 500);
+  await expect(page.getByRole('heading', { name: String(displayedYear + 1), exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: `January ${displayedYear + 1}` })).toBeVisible();
+  await page.getByRole('button', { name: `January ${displayedYear + 1}` }).click();
+  await expect(page.getByRole('button', { name: /choose month and year/ })).toContainText('January');
+  surfaceBox = await calendarSurface.boundingBox();
+  await page.waitForTimeout(450);
+  await page.mouse.move(surfaceBox.x + 100, surfaceBox.y + 100);
+  await page.mouse.wheel(0, 500);
+  await expect(page.getByRole('button', { name: /choose month and year/ })).toContainText('February');
+  await page.getByRole('button', { name: 'Today' }).click();
+  await page.getByRole('button', { name: 'Dentist appointment' }).click();
+  await expect(page.getByText('From note: Errands')).toBeVisible();
+  await expect(page.getByText('Dentist appointment tomorrow at 10am.', { exact: true })).toBeVisible();
 
-  // 8. Open note detail
-  await page.getByRole('link', { name: 'Back to note' }).click();
-  const card = page.getByRole('article', { name: 'Reminder: Dentist appointment' });
-  await expect(card.getByText('On Google Calendar')).toBeVisible();
-  await expect(card.getByText(/10:00 AM – 11:00 AM/)).toBeVisible();
+  await page.getByRole('link', { name: 'Open note' }).click();
+  const reminder = page.getByRole('article', { name: 'Reminder: Dentist appointment' });
+  await expect(reminder.getByText('Saved')).toBeVisible();
+  await expect(reminder.getByText(/10:00 AM – 11:00 AM/)).toBeVisible();
 
-  // 9. Edit reminder
-  await card.getByRole('button', { name: 'Edit' }).click();
+  await page.getByRole('link', { name: 'Calendar' }).first().click();
+  await expect(page.getByRole('heading', { name: /20\d\d/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Dentist appointment' }).click();
+  await expect(page.getByText('From note: Errands')).toBeVisible();
+  await expect(page.getByText('Dentist appointment tomorrow at 10am.', { exact: true })).toBeVisible();
+  const eventCard = page.locator('article').filter({ has: page.getByRole('heading', { name: 'Dentist appointment' }) });
+  await eventCard.getByRole('button', { name: 'Edit' }).click();
   const editSheet = page.getByRole('dialog');
   await editSheet.getByLabel('Event title').fill('Dentist (rescheduled)');
   await editSheet.getByLabel('Start time').fill('11:30');
   await editSheet.getByLabel('End time').fill('12:15');
   await editSheet.getByRole('button', { name: 'Save changes' }).click();
   await expect(editSheet).toBeHidden();
-  const edited = page.getByRole('article', { name: 'Reminder: Dentist (rescheduled)' });
-  await expect(edited.getByText(/11:30 AM – 12:15 PM/)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Dentist (rescheduled)' })).toBeVisible();
   snapshot = await state(request);
-  expect(snapshot.events[0].summary).toBe('Dentist (rescheduled)');
-  expect(snapshot.events[0].start.dateTime).toMatch(/T11:30:00$/);
+  expect(snapshot.events[0]).toMatchObject({ event_title: 'Dentist (rescheduled)', status: 'pending' });
 
-  // 10. Delete reminder (and its calendar event)
-  await edited.getByRole('button', { name: 'Delete' }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Delete everywhere' }).click();
-  await expect(edited).toBeHidden();
-  await expect(page.getByText('No reminders yet.')).toBeVisible();
-  snapshot = await state(request);
-  expect(snapshot.events).toHaveLength(0);
-  expect(snapshot.reminders).toHaveLength(0);
+  const editedCard = page.locator('article').filter({ has: page.getByRole('heading', { name: 'Dentist (rescheduled)' }) });
+  await editedCard.getByRole('button', { name: 'Delete' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete event' }).click();
+  await expect(page.getByText('No events on this day.')).toBeVisible();
+  expect((await state(request)).events).toHaveLength(0);
 
-  // Notes persist and are searchable
   await page.goto('/notes?q=errands');
   await expect(page.getByRole('link', { name: /Errands/ })).toBeVisible();
   await page.getByLabel('Search notes').fill('nothing-matches');
   await expect(page.getByText('No matching notes')).toBeVisible();
 });
 
-test('undo removes a just-created calendar event', async ({ page, request }) => {
+test('editing a note date automatically reschedules its calendar event', async ({ page, request }) => {
   await page.goto('/onboarding');
   await page.getByRole('tab', { name: 'Create account' }).click();
-  await page.getByLabel('Email').fill(`undo-${Date.now()}@example.com`);
+  await page.getByLabel('Email').fill(`reschedule-${Date.now()}@example.com`);
   await page.getByLabel('Password').fill('trackademia1');
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page).toHaveURL(/\/notes$/);
-  await approveGoogleConsent(page);
-  await page.goto('/settings');
-  await page.getByRole('button', { name: 'Connect Google Calendar' }).click();
-  await expect(page.locator('#default-calendar')).toBeVisible();
 
   await page.goto('/notes/new');
-  await page.getByLabel('Note', { exact: true }).fill('Pay electricity bill on the 15th');
-  await page.getByRole('button', { name: /Pay electricity bill/ }).click();
+  const note = page.getByLabel('Note', { exact: true });
+  await note.fill('Pay electricity bill on December 15, 2099');
+  await expect(page.locator('[data-status]')).toHaveText(/^Saved/);
+  const [created] = (await state(request)).events;
+  expect(created).toMatchObject({ event_title: 'Pay electricity bill' });
+
+  await note.fill('Pay electricity bill on December 20, 2099');
+  await expect(page.locator('[data-status]')).toHaveText(/^Saved/);
+  const [rescheduled] = (await state(request)).events;
+  expect(rescheduled.id).toBe(created.id);
+  expect(rescheduled.start_datetime).not.toBe(created.start_datetime);
+
+  await note.fill('The electricity bill was paid.');
+  await expect(page.locator('[data-status]')).toHaveText(/^Saved/);
+  expect((await state(request)).events).toHaveLength(0);
+});
+
+test('upcoming reminders due within two days are marked red', async ({ page, request }) => {
+  await page.goto('/onboarding');
+  await page.getByRole('tab', { name: 'Create account' }).click();
+  await page.getByLabel('Email').fill(`due-soon-${Date.now()}@example.com`);
+  await page.getByLabel('Password').fill('trackademia1');
+  await page.getByRole('button', { name: 'Create account' }).click();
+  await expect(page).toHaveURL(/\/notes$/);
+
+  await page.goto('/notes/new');
+  await page.getByLabel('Note', { exact: true }).fill('Submit homework tomorrow');
+  await expect(page.locator('[data-status]')).toHaveText(/^Saved/);
+  await page.goto('/notes');
+
+  const urgentReminder = page.locator('article[data-due-soon="true"]');
+  await expect(urgentReminder).toBeVisible();
+  await expect(urgentReminder.getByText('Due soon')).toBeVisible();
+  await expect(urgentReminder).toHaveClass(/border-danger/);
+
+  await urgentReminder.click();
+  await page.getByRole('link', { name: 'Edit note' }).last().click();
+  await page.getByLabel('Note', { exact: true }).fill('Homework completed.');
+  await expect(page.locator('[data-status]')).toHaveText(/^Saved/);
+  expect((await state(request)).events).toHaveLength(0);
+});
+
+test('create an unlinked event directly from the calendar', async ({ page, request }) => {
+  await page.goto('/onboarding');
+  await page.getByRole('tab', { name: 'Create account' }).click();
+  await page.getByLabel('Email').fill(`calendar-${Date.now()}@example.com`);
+  await page.getByLabel('Password').fill('trackademia1');
+  await page.getByRole('button', { name: 'Create account' }).click();
+  await expect(page).toHaveURL(/\/notes$/);
+
+  await page.getByRole('link', { name: 'Calendar' }).first().click();
+  await page.getByRole('button', { name: 'Add event' }).first().click();
   const sheet = page.getByRole('dialog');
-  await expect(sheet.getByLabel('All-day event')).toBeChecked();
-  const before = (await state(request)).events.length;
-  await sheet.getByRole('button', { name: 'Add to Google Calendar' }).click();
-  await expect(page.locator('[data-success]').getByText('All day')).toBeVisible();
-  expect((await state(request)).events.length).toBe(before + 1);
-  await page.locator('[data-success]').getByRole('button', { name: 'Undo' }).click();
-  await expect(page.getByText('Reminder removed')).toBeVisible();
-  expect((await state(request)).events.length).toBe(before);
+  await sheet.getByLabel('Event title').fill('Study session');
+  await sheet.getByRole('button', { name: 'Add event' }).click();
+  await expect(sheet).toBeHidden();
+  await expect(page.getByRole('heading', { name: 'Study session' })).toBeVisible();
+  const [event] = (await state(request)).events;
+  expect(event).toMatchObject({ event_title: 'Study session', note_id: null });
 });
 
 test('protected routes redirect to onboarding and wrong passwords show an error', async ({ page }) => {

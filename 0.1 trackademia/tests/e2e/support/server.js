@@ -1,6 +1,6 @@
 /**
- * E2E backend: the real Express API (real routes, validation, reminder and
- * calendar services) wired to in-memory Supabase tables and a fake Google API,
+ * E2E backend: the real Express API (real routes and validation) wired to
+ * in-memory Supabase tables and a fake AI API,
  * plus a minimal Supabase Auth (GoTrue) stand-in for the browser client.
  * Used only by Playwright; never deployed.
  */
@@ -25,9 +25,6 @@ const config = loadConfig({
   SUPABASE_URL: `http://localhost:${AUTH_PORT}`,
   SUPABASE_ANON_KEY: 'anon',
   SUPABASE_SERVICE_ROLE_KEY: 'service',
-  GOOGLE_CLIENT_ID: 'client-id',
-  GOOGLE_CLIENT_SECRET: 'client-secret',
-  ENCRYPTION_KEY: 'b'.repeat(64),
 });
 
 const supabase = createFakeSupabase();
@@ -52,7 +49,7 @@ const app = express();
 
 // Test-only inspection endpoint (mounted before the real API).
 app.get('/__test/state', (_req, res) => {
-  res.json({ events: google.activeEvents(), allEvents: [...google.state.events.values()], reminders: supabase.store.tables.reminders || [], notes: supabase.store.tables.notes || [] });
+  res.json({ events: supabase.store.tables.reminders || [], reminders: supabase.store.tables.reminders || [], notes: supabase.store.tables.notes || [] });
 });
 app.use(api);
 app.listen(API_PORT, () => console.log(`e2e api on ${API_PORT}`));

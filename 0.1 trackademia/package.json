@@ -2,7 +2,7 @@
   "name": "trackademia",
   "version": "1.0.0",
   "private": true,
-  "description": "Smart notes that turn natural-language dates into real Google Calendar events.",
+  "description": "Smart notes with a first-party calendar for natural-language events.",
   "type": "module",
   "engines": {
     "node": ">=20.10"

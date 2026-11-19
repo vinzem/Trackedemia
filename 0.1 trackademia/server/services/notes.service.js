@@ -2,7 +2,7 @@
 import { conflict, fromDatabaseError, notFound } from '../utils/errors.js';
 
 const NOTE_COLUMNS = 'id, user_id, title, content, created_at, updated_at';
-export const REMINDER_SUMMARY_COLUMNS = 'id, note_id, event_title, start_datetime, end_datetime, all_day, timezone, calendar_name, google_event_link, status';
+export const REMINDER_SUMMARY_COLUMNS = 'id, note_id, event_title, start_datetime, end_datetime, all_day, timezone, source_text';
 
 const SORTS = {
   updated_desc: ['updated_at', false],
@@ -28,7 +28,7 @@ async function attachReminders(db, userId, notes) {
   const byNote = new Map();
   data.forEach((reminder) => {
     if (!byNote.has(reminder.note_id)) byNote.set(reminder.note_id, []);
-    byNote.get(reminder.note_id).push(reminder);
+    byNote.get(reminder.note_id).push({ ...reminder, status: 'saved' });
   });
   return notes.map((note) => ({ ...note, reminders: byNote.get(note.id) || [] }));
 }

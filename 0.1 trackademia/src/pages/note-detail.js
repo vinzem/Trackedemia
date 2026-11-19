@@ -1,6 +1,6 @@
 /**
  * Screen 06: note detail / manage reminders. Shows the note with highlighted
- * dates, linked reminder cards (status, edit, delete, retry, open in Google),
+ * dates, linked calendar event cards and detected event suggestions,
  * and offers to add any detected event that is not yet on the calendar.
  */
 import { icon } from '../components/icons.js';
@@ -11,8 +11,8 @@ import { toast } from '../components/toast.js';
 import { detectLocally } from '../features/detection/detection-service.js';
 import { highlightedPreview } from '../features/detection/highlighting.js';
 import { deleteNote, getNote } from '../features/notes/notes-service.js';
-import { confirmDetectedEvent, editReminder, removeReminder, retryReminderSync } from '../features/reminders/reminder-controller.js';
-import { deleteReminder, listReminders } from '../features/reminders/reminder-service.js';
+import { confirmDetectedEvent, editReminder, removeReminder } from '../features/reminders/reminder-controller.js';
+import { listReminders } from '../features/reminders/reminder-service.js';
 import { navigate } from '../router.js';
 import { getState } from '../state.js';
 import { formatTimestamp } from '../utils/date-utils.js';
@@ -83,7 +83,7 @@ export async function render(ctx) {
             <button class="btn btn--ghost btn--sm" type="button" data-action="refresh">${icon('refresh', { size: 16 })}<span>Refresh</span></button>
           </div>
           <div class="space-y-3">
-            ${reminders.length ? reminders.map((r) => reminderCard(r)) : html`<p class="card p-4 text-sm text-ink-muted">No reminders yet.${suggestions.length ? ' Add one of the detected events below.' : ' Dates you write in this note can be turned into Google Calendar events.'}</p>`}
+            ${reminders.length ? reminders.map((r) => reminderCard(r)) : html`<p class="card p-4 text-sm text-ink-muted">No events yet.${suggestions.length ? ' Add one of the detected events below.' : ' Dates you write in this note can be added to your calendar.'}</p>`}
           </div>
         </section>
 
@@ -117,7 +117,6 @@ export async function render(ctx) {
     if (action === 'retry') load();
     if (action === 'refresh') { await load(); toast.info('Up to date'); }
     if (action === 'edit-reminder' && reminder) editReminder(reminder, { onUpdated: replaceReminder });
-    if (action === 'retry-reminder' && reminder) retryReminderSync(reminder, { onUpdated: replaceReminder });
     if (action === 'delete-reminder' && reminder) {
       removeReminder(reminder, { onDeleted: () => { reminders = reminders.filter((r) => r.id !== reminder.id); draw(); } });
     }
@@ -130,26 +129,19 @@ export async function render(ctx) {
         onCreated: (created) => {
           reminders = [...reminders.filter((r) => r.id !== created.id), created];
           draw();
-          toast.success('Added to Google Calendar', { detail: created.event_title, actions: created.google_event_link ? [{ label: 'Open', href: created.google_event_link }] : [] });
+          toast.success('Added to your calendar', { detail: created.event_title });
         },
       });
     }
     if (action === 'delete-note') {
-      const synced = reminders.filter((r) => r.google_event_id);
       const answer = await confirmDialog({
         title: 'Delete this note?',
-        message: synced.length
-          ? `This note has ${synced.length} event${synced.length === 1 ? '' : 's'} on Google Calendar. Delete them too, or keep them on your calendar?`
-          : 'This cannot be undone.',
-        confirmLabel: synced.length ? 'Delete note and events' : 'Delete note',
-        secondaryLabel: synced.length ? 'Keep events' : undefined,
+        message: 'This cannot be undone. Calendar events linked to this note will stay in your Trackademia calendar.',
+        confirmLabel: 'Delete note',
         danger: true,
       });
       if (answer === 'cancel') return;
       try {
-        if (answer === 'confirm') {
-          for (const r of reminders) await deleteReminder(r.id);
-        }
         await deleteNote(note.id);
         toast.success('Note deleted');
         navigate('/notes', { replace: true });

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('mobile layout: single column, FAB, bottom-sheet confirmation', async ({ page }) => {
+test('mobile layout: single column, calendar access, and bottom-sheet event confirmation', async ({ page }) => {
   await page.goto('/onboarding');
   await page.getByRole('tab', { name: 'Create account' }).click();
   await page.getByLabel('Email').fill(`mobile-${Date.now()}@example.com`);
@@ -9,6 +9,12 @@ test('mobile layout: single column, FAB, bottom-sheet confirmation', async ({ pa
   await expect(page).toHaveURL(/\/notes$/);
 
   await expect(page.locator('.app-sidebar')).toBeHidden();
+  await expect(page.getByRole('link', { name: 'Calendar' }).first()).toBeVisible();
+  await page.getByRole('link', { name: 'Calendar' }).first().click();
+  await expect(page.getByRole('heading', { name: /20\d\d/ })).toBeVisible();
+  const calendarWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+  expect(calendarWidth).toBeLessThanOrEqual(page.viewportSize().width);
+  await page.goto('/notes');
   const fab = page.getByRole('link', { name: 'New note' }).last();
   await expect(fab).toBeVisible();
   const width = await page.evaluate(() => document.documentElement.scrollWidth);
@@ -20,8 +26,7 @@ test('mobile layout: single column, FAB, bottom-sheet confirmation', async ({ pa
   await page.getByRole('button', { name: /Call the supplier/ }).click();
   const sheet = page.getByRole('dialog');
   await expect(sheet.getByText('What time in the afternoon?')).toBeVisible();
-  // Calendar is not connected yet, so the sheet offers to connect instead of failing.
-  await expect(sheet.getByText('Connect Google Calendar to add this event')).toBeVisible();
+  await expect(sheet.getByRole('button', { name: 'Add event' })).toBeEnabled();
   const box = await sheet.boundingBox();
   expect(Math.round(box.y + box.height)).toBeGreaterThanOrEqual(page.viewportSize().height - 2);
   await sheet.getByRole('button', { name: 'Cancel' }).first().click();

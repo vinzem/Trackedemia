@@ -7,8 +7,8 @@ import { navbar } from './components/navbar.js';
 import { sidebar } from './components/sidebar.js';
 import { toast } from './components/toast.js';
 import { initAuth, isAuthenticated, rememberRedirect } from './features/auth/auth-controller.js';
-import { handleOAuthReturn, loadCalendarState } from './features/calendar/calendar-controller.js';
 import { defineRoute, navigate, setGuard, setLeaveGuard, setRenderer, startRouter } from './router.js';
+import { initializeTheme, toggleTheme } from './services/theme.js';
 import { getState, subscribe } from './state.js';
 import { html, mount } from './utils/helpers.js';
 
@@ -19,6 +19,7 @@ defineRoute('/onboarding', () => import('./pages/onboarding.js'), { auth: false,
 defineRoute('/auth/callback', () => import('./pages/onboarding.js'), { auth: false, layout: 'auth' });
 defineRoute('/reset-password', () => import('./pages/onboarding.js'), { auth: false, layout: 'auth' });
 defineRoute('/notes', () => import('./pages/notes.js'));
+defineRoute('/calendar', () => import('./pages/calendar.js'));
 defineRoute('/notes/new', () => import('./pages/new-note.js'));
 defineRoute('/notes/:id/edit', () => import('./pages/new-note.js'));
 defineRoute('/notes/:id', () => import('./pages/note-detail.js'));
@@ -41,11 +42,11 @@ function guard(route, path) {
 }
 
 function renderShellChrome() {
-  const { user, profile, calendar } = getState();
+  const { user, profile } = getState();
   const sidebarEl = document.getElementById('app-sidebar-slot');
   const navbarEl = document.getElementById('app-navbar-slot');
   const fabEl = document.getElementById('app-fab-slot');
-  if (sidebarEl) mount(sidebarEl, sidebar({ path: shellState.path, user, profile, calendar }));
+  if (sidebarEl) mount(sidebarEl, sidebar({ path: shellState.path, user, profile }));
   if (navbarEl) mount(navbarEl, navbar({ ...shellState.navbar, user, profile }));
   if (fabEl) mount(fabEl, shellState.fab ? html`<a class="fab" href="/notes/new" data-link aria-label="New note">${icon('plus', { size: 26 })}</a>` : '');
 }
@@ -93,8 +94,6 @@ async function render(match) {
   }
   if (route.layout !== 'auth') {
     renderShellChrome();
-    if (!getState().calendar.loaded) loadCalendarState().catch(() => {});
-    handleOAuthReturn(query);
   }
 
   const page = await route.loader();
@@ -117,6 +116,7 @@ async function render(match) {
 }
 
 export async function startApp() {
+  initializeTheme();
   await initAuth({
     onSignedOut: () => navigate('/onboarding', { replace: true, force: true }),
     onSignedIn: (redirect) => {
@@ -133,6 +133,11 @@ export async function startApp() {
 
   subscribe(() => {
     if (document.getElementById('app')?.dataset.layout === 'app') renderShellChrome();
+  });
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('[data-action=toggle-theme]')) return;
+    toggleTheme();
+    renderShellChrome();
   });
   window.addEventListener('online', () => toast.success('Back online'));
   window.addEventListener('offline', () => toast.warning('You are offline', { detail: 'Changes are kept on this device until you reconnect.' }));

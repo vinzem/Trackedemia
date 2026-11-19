@@ -10,23 +10,17 @@ import { createErrorHandler, notFoundHandler } from './middleware/error.middlewa
 import { createRateLimiters } from './middleware/rate-limit.middleware.js';
 import { aiRoutes } from './routes/ai.routes.js';
 import { authRoutes } from './routes/auth.routes.js';
-import { calendarRoutes } from './routes/calendar.routes.js';
 import { notesRoutes } from './routes/notes.routes.js';
 import { remindersRoutes } from './routes/reminders.routes.js';
 import { createAiExtractionService } from './services/ai-extraction.service.js';
 import { createAuthService } from './services/auth.service.js';
-import { createGoogleCalendarService } from './services/google-calendar.service.js';
 import { createRemindersService } from './services/reminders.service.js';
-import { createCipher } from './utils/crypto.js';
 import { logger as defaultLogger } from './utils/logger.js';
 
 export function buildServices({ config, database, fetchImpl = globalThis.fetch, logger = defaultLogger, authService }) {
-  const cipher = config.encryptionKey ? createCipher(config.encryptionKey) : null;
-  const calendar = createGoogleCalendarService({ config, adminDb: database?.admin, cipher, fetchImpl, logger });
   return {
     auth: authService || createAuthService({ database }),
-    calendar,
-    reminders: createRemindersService({ calendar, config, logger }),
+    reminders: createRemindersService(),
     extraction: createAiExtractionService({ config, fetchImpl, logger }),
   };
 }
@@ -63,7 +57,6 @@ export function createApp({ config, services, logger = defaultLogger, rateLimit 
         integrations: {
           database: config.features.database,
           openai: services.extraction.isAiEnabled(),
-          google_calendar: services.calendar.isConfigured(),
         },
       },
     });
@@ -76,7 +69,6 @@ export function createApp({ config, services, logger = defaultLogger, rateLimit 
   app.use('/api/auth', authRoutes(deps));
   app.use('/api/notes', notesRoutes(deps));
   app.use('/api/reminders', remindersRoutes(deps));
-  app.use('/api/calendar', calendarRoutes(deps));
   app.use('/api/ai', aiRoutes(deps));
 
   app.use(notFoundHandler);

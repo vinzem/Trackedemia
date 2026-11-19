@@ -51,6 +51,34 @@
   color-scheme: light;
 }
 
+:root[data-theme="dark"] {
+  --color-bg: #171717;
+  --color-surface: #222222;
+  --color-surface-muted: #2B2B2B;
+  --color-text: #F1F1F1;
+  --color-text-secondary: #B8B8B8;
+  --color-text-muted: #999999;
+  --color-border: #4A4A4A;
+  --color-border-subtle: #383838;
+  --color-primary: #8587FF;
+  --color-primary-hover: #9A9CFF;
+  --color-primary-soft: #30304F;
+  --color-success: #81B88C;
+  --color-success-soft: #26382B;
+  --color-error: #F08B82;
+  --color-error-soft: #442A28;
+  --color-warning: #E7B75C;
+  --color-warning-soft: #41351F;
+  --color-highlight: #554917;
+  --color-highlight-strong: #9B821A;
+  --color-overlay: rgba(0, 0, 0, 0.7);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.45);
+  color-scheme: dark;
+}
+
 @layer base {
   html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   body {
@@ -64,6 +92,13 @@
   button { cursor: pointer; }
   button:disabled { cursor: not-allowed; }
   ::selection { background: var(--color-primary-soft); }
+  :root[data-theme="dark"] .bg-white { background-color: var(--color-surface); }
+  :root[data-theme="dark"] .app-navbar { background: var(--color-surface); }
+  :root[data-theme="dark"] .auth-hero { background: #171717; }
+  :root[data-theme="dark"] .toast { background: #303030; }
+  :root[data-theme="dark"] .btn--primary,
+  :root[data-theme="dark"] .bg-primary.text-white { background-color: #4F46E5; }
+  :root[data-theme="dark"] .bg-danger.text-white { background-color: #8F302B; }
 }
 
 .sr-only {
@@ -74,7 +109,7 @@
 .skip-link {
   position: absolute; left: 12px; top: -48px; z-index: 100;
   padding: 8px 12px; border-radius: var(--radius-sm);
-  background: var(--color-text); color: #fff; text-decoration: none;
+  background: var(--color-text); color: var(--color-bg); text-decoration: none;
   transition: top var(--duration-fast);
 }
 .skip-link:focus { top: 12px; }

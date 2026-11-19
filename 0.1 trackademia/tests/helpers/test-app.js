@@ -6,9 +6,7 @@ import { createLogger } from '../../server/utils/logger.js';
 import { createFakeGoogle } from './fake-google.js';
 import { createFakeSupabase } from './fake-supabase.js';
 
-export const TEST_ENCRYPTION_KEY = 'a'.repeat(64);
-
-export function createTestContext({ openai, withGoogle = true, withOpenAI = Boolean(openai), rateLimit = false } = {}) {
+export function createTestContext({ openai, withOpenAI = Boolean(openai), rateLimit = false } = {}) {
   const config = loadConfig({
     NODE_ENV: 'test',
     APP_URL: 'http://localhost:5173',
@@ -16,8 +14,6 @@ export function createTestContext({ openai, withGoogle = true, withOpenAI = Bool
     SUPABASE_URL: 'http://supabase.test',
     SUPABASE_ANON_KEY: 'anon',
     SUPABASE_SERVICE_ROLE_KEY: 'service',
-    ENCRYPTION_KEY: TEST_ENCRYPTION_KEY,
-    ...(withGoogle ? { GOOGLE_CLIENT_ID: 'client-id', GOOGLE_CLIENT_SECRET: 'client-secret' } : {}),
     ...(withOpenAI ? { OPENAI_API_KEY: 'sk-test' } : {}),
   });
   const supabase = createFakeSupabase();

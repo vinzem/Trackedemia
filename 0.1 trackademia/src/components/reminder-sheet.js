@@ -11,46 +11,21 @@ import { icon } from './icons.js';
 import { field, showFieldErrors, textareaField } from './input.js';
 import { openOverlay } from './modal.js';
 
-function calendarControl({ calendars, calendarState, selectedId }) {
-  if (!calendarState.connected) {
-    return html`
-      <div class="alert alert--info" data-field="calendar_id">
-        ${icon('calendar')}
-        <div class="min-w-0 flex-1">
-          <p class="font-semibold">${calendarState.needs_reconnect ? 'Reconnect Google Calendar' : 'Connect Google Calendar to add this event'}</p>
-          <p class="text-ink-muted">Your note is saved first, so nothing is lost.</p>
-          <button class="btn btn--secondary btn--sm mt-2" type="button" data-sheet-action="connect">${icon('google')}<span>${calendarState.needs_reconnect ? 'Reconnect' : 'Connect'}</span></button>
-          <p class="field__error mt-1" role="alert" hidden></p>
-        </div>
-        <input type="hidden" name="calendar_id" value="" />
-      </div>`;
-  }
-  return html`
-    <div class="field" data-field="calendar_id">
-      <label class="field__label" for="sheet-calendar">Google Calendar</label>
-      <select class="select" id="sheet-calendar" name="calendar_id">
-        ${calendars.map((c) => html`<option value="${c.id}"${c.id === selectedId ? html` selected` : ''}>${c.name}${c.primary ? ' (primary)' : ''}</option>`)}
-      </select>
-      <p class="field__error" role="alert" hidden></p>
-    </div>`;
-}
-
 /**
- * @param {{ mode:'create'|'edit', initial:object, clarification?:string|null, isPast?:boolean, calendars:object[],
- *   calendarState:object, defaultTimezone:string, onSubmit:(values:object, ui:object) => Promise<boolean>,
- *   onConnect?:() => void, onDismiss?:() => void, onClose?:() => void }} options
+ * @param {{ mode:'create'|'edit', initial:object, clarification?:string|null, isPast?:boolean,
+ *   defaultTimezone:string, onSubmit:(values:object, ui:object) => Promise<boolean>,
+ *   onDismiss?:() => void, onClose?:() => void }} options
  */
-export function openReminderSheet({ mode, initial, clarification, isPast, calendars, calendarState, defaultTimezone, onSubmit, onConnect, onDismiss, onClose }) {
+export function openReminderSheet({ mode, initial, clarification, isPast, defaultTimezone, onSubmit, onDismiss, onClose }) {
   const timezone = initial.timezone || defaultTimezone;
   const zones = listTimezones();
-  const selectedCalendar = initial.calendar_id || calendars.find((c) => c.is_default)?.id || calendars[0]?.id || '';
   const allDay = Boolean(initial.all_day);
   let busy = false;
 
   const content = html`
     <div class="sheet__handle" aria-hidden="true"></div>
     <div class="flex items-center justify-between px-5 pb-2 pt-4">
-      <h2 id="reminder-sheet-title" class="text-lg font-semibold">${mode === 'edit' ? 'Edit reminder' : 'Add to Google Calendar'}</h2>
+      <h2 id="reminder-sheet-title" class="text-lg font-semibold">${mode === 'edit' ? 'Edit event' : 'Add calendar event'}</h2>
       <button class="icon-btn" type="button" data-sheet-action="cancel" aria-label="Close">${icon('close')}</button>
     </div>
     <form class="sheet__body space-y-4" novalidate>
@@ -76,10 +51,9 @@ export function openReminderSheet({ mode, initial, clarification, isPast, calend
         </select>
         <p class="field__error" role="alert" hidden></p>
       </div>
-      ${calendarControl({ calendars, calendarState, selectedId: selectedCalendar })}
       <div class="flex flex-col gap-2 pt-2">
-        <button class="btn btn--primary btn--lg btn--block" type="submit" data-submit${calendarState.connected ? '' : html` disabled`}>
-          ${icon(mode === 'edit' ? 'save' : 'calendarCheck')}<span>${mode === 'edit' ? 'Save changes' : 'Add to Google Calendar'}</span>
+        <button class="btn btn--primary btn--lg btn--block" type="submit" data-submit>
+          ${icon(mode === 'edit' ? 'save' : 'calendarCheck')}<span>${mode === 'edit' ? 'Save changes' : 'Add event'}</span>
         </button>
         <div class="flex gap-2">
           ${mode === 'create' && onDismiss ? html`<button class="btn btn--ghost flex-1" type="button" data-sheet-action="dismiss">Dismiss suggestion</button>` : ''}
@@ -110,7 +84,6 @@ export function openReminderSheet({ mode, initial, clarification, isPast, calend
     if (!action || busy) return;
     if (action === 'cancel') sheet.close('cancel');
     if (action === 'dismiss') { onDismiss?.(); sheet.close('dismiss'); }
-    if (action === 'connect') onConnect?.();
   });
 
   form.addEventListener('submit', async (event) => {
@@ -122,12 +95,11 @@ export function openReminderSheet({ mode, initial, clarification, isPast, calend
     const { valid, errors } = validateReminderForm(values);
     showFieldErrors(form, errors);
     if (!valid) return;
-    values.calendar_name = calendars.find((c) => c.id === values.calendar_id)?.name || null;
     if (!values.end_time) values.end_time = null;
 
     busy = true;
     showError('');
-    const restore = setButtonLoading(submitButton, mode === 'edit' ? 'Saving…' : 'Adding to Google Calendar…');
+    const restore = setButtonLoading(submitButton, mode === 'edit' ? 'Saving…' : 'Adding event…');
     try {
       const done = await onSubmit(values, {
         showError,

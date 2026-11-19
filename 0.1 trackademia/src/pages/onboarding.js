@@ -1,7 +1,6 @@
 /**
  * Screen 01: onboarding / sign-in. Handles sign-in, sign-up, password reset
- * request, setting a new password, the email-verification notice and the
- * OAuth/email-link callback.
+ * request, setting a new password, the email-verification notice and callback.
  */
 import { setButtonLoading } from '../components/button.js';
 import { icon, logo } from '../components/icons.js';
@@ -23,7 +22,7 @@ function hero() {
         <div class="mt-8 rounded-xl bg-white/5 p-5 text-lg leading-relaxed ring-1 ring-white/10">
           Submit thesis draft <mark class="rounded bg-[#FDE68A] px-1 text-ink">next Monday at 3pm</mark>.<br />
           Dentist <mark class="rounded bg-[#FDE68A] px-1 text-ink">tomorrow at 10am</mark>.
-          <div class="mt-4 flex items-center gap-2 text-sm text-white/70">${icon('calendarCheck', { size: 18 })} Added to Google Calendar</div>
+          <div class="mt-4 flex items-center gap-2 text-sm text-white/70">${icon('calendarCheck', { size: 18 })} Saved to your Trackademia calendar</div>
         </div>
       </div>
       <p class="text-sm text-white/50">Smart notes for students and busy people.</p>
@@ -33,11 +32,11 @@ function hero() {
 function calendarExplainer() {
   return html`
     <div class="mt-6 rounded-lg border border-line-subtle bg-surface p-4 text-sm">
-      <p class="flex items-center gap-2 font-semibold">${icon('calendar', { size: 18 })}How Google Calendar works here</p>
+      <p class="flex items-center gap-2 font-semibold">${icon('calendar', { size: 18 })}Your Trackademia calendar</p>
       <ul class="mt-2 list-disc space-y-1 pl-5 text-ink-muted">
-        <li>After signing in, connect Google Calendar from Settings or the first time you add a reminder.</li>
-        <li>Trackademia highlights dates in your notes and only creates events after you confirm them.</li>
-        <li>You can edit or delete those events from your note at any time, or disconnect whenever you like.</li>
+        <li>Trackademia highlights dates in your notes and automatically adds detected future events to your calendar.</li>
+        <li>View and manage your events from the Calendar page.</li>
+        <li>Your calendar events are stored with your Trackademia account.</li>
       </ul>
     </div>`;
 }
@@ -62,8 +61,6 @@ function authForm(mode) {
 
   return html`
     ${tabs}
-    <button class="btn btn--secondary btn--lg btn--block" type="button" data-action="google">${icon('google')}<span>Continue with Google</span></button>
-    <div class="my-5 flex items-center gap-3 text-xs uppercase tracking-wide text-ink-muted"><span class="h-px flex-1 bg-line"></span>or with email<span class="h-px flex-1 bg-line"></span></div>
     <form class="space-y-4" data-form="${mode}" novalidate>
       ${mode === 'signup' ? field({ name: 'name', label: 'Your name', autocomplete: 'name', maxlength: 80 }) : ''}
       ${field({ name: 'email', label: 'Email', type: 'email', autocomplete: 'email', required: true, inputmode: 'email' })}
@@ -148,15 +145,6 @@ export async function render(ctx) {
     }
     const action = event.target.closest('[data-action]');
     if (!action) return;
-    if (action.dataset.action === 'google') {
-      const restore = setButtonLoading(action, 'Redirecting to Google…');
-      try {
-        await authService.signInWithGoogle();
-      } catch (error) {
-        restore();
-        toast.error('Google sign-in failed', { detail: error.message });
-      }
-    }
     if (action.dataset.action === 'resend') {
       const restore = setButtonLoading(action, 'Sending…');
       try {

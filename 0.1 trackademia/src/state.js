@@ -8,8 +8,6 @@ const state = {
   session: null,
   user: null,
   profile: null,
-  calendar: { loaded: false, configured: true, connected: false, needs_reconnect: false, google_account_email: null },
-  calendars: [],
   notesQuery: { q: '', sort: 'updated_desc' },
 };
 
@@ -29,7 +27,6 @@ export function subscribe(listener) {
 
 export function resetState() {
   setState({
-    session: null, user: null, profile: null, calendars: [],
-    calendar: { loaded: false, configured: true, connected: false, needs_reconnect: false, google_account_email: null },
+    session: null, user: null, profile: null,
   });
 }

@@ -34,6 +34,7 @@ class Query {
   neq(column, value) { this.filters.push((row) => row[column] !== value); return this; }
   in(column, values) { this.filters.push((row) => values.includes(row[column])); return this; }
   lt(column, value) { this.filters.push((row) => row[column] < value); return this; }
+  lte(column, value) { this.filters.push((row) => row[column] <= value); return this; }
   gte(column, value) { this.filters.push((row) => row[column] >= value); return this; }
   ilike(column, pattern) { this.filters.push((row) => matchesIlike(row[column], pattern)); return this; }
   or(expression) {
@@ -98,7 +99,7 @@ class Query {
           continue;
         }
         const row = { ...(this.table === 'profiles' ? {} : { id: randomUUID() }), created_at: now(), updated_at: now(), ...input };
-        if (this.table === 'profiles') Object.assign(row, { timezone: 'UTC', ai_detection_enabled: true, default_calendar_id: null, default_calendar_name: null, ...input });
+        if (this.table === 'profiles') Object.assign(row, { timezone: 'UTC', ai_detection_enabled: true, ...input });
         if (this.table === 'reminders') Object.assign(row, { status: 'pending', ...input });
         const denied = this.rlsWriteCheck(row) || this.checkUnique(row);
         if (denied) return { data: null, error: denied };

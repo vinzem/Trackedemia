@@ -1,4 +1,4 @@
-/** Supabase Auth operations (email/password, Google, reset) + profile API. */
+/** Supabase Auth operations (email/password and reset) + profile API. */
 import { api } from '../../services/api-client.js';
 import { supabase } from '../../services/supabase.js';
 
@@ -30,7 +30,7 @@ async function run(promise) {
 }
 
 function isMockClient() {
-  return Boolean(supabase && supabase.auth && !supabase.auth.getUser && !supabase.auth.getSession?.()?.data?.session?.user?.email && !supabase.auth.signInWithOAuth?.toString().includes('supabase'));
+  return Boolean(supabase && supabase.auth && !supabase.auth.getUser);
 }
 
 export const authService = {
@@ -42,9 +42,6 @@ export const authService = {
     email, password, options: { emailRedirectTo: redirect('/auth/callback'), data: { full_name: name } },
   })),
   signIn: ({ email, password }) => run(requireClient().auth.signInWithPassword({ email, password })),
-  signInWithGoogle: () => run(requireClient().auth.signInWithOAuth({
-    provider: 'google', options: { redirectTo: redirect('/auth/callback'), queryParams: { prompt: 'select_account' } },
-  })),
   resendVerification: (email) => run(requireClient().auth.resend({ type: 'signup', email, options: { emailRedirectTo: redirect('/auth/callback') } })),
   requestPasswordReset: (email) => run(requireClient().auth.resetPasswordForEmail(email, { redirectTo: redirect('/reset-password') })),
   updatePassword: (password) => run(requireClient().auth.updateUser({ password })),

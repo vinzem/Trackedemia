@@ -18,9 +18,7 @@ describe('authentication middleware', () => {
     ['GET', '/api/notes'],
     ['POST', '/api/notes'],
     ['GET', '/api/reminders'],
-    ['GET', '/api/calendar/calendars'],
-    ['GET', '/api/calendar/connect'],
-    ['POST', '/api/calendar/disconnect'],
+    ['POST', '/api/reminders'],
     ['POST', '/api/ai/extract-reminders'],
     ['GET', '/api/auth/me'],
   ])('rejects %s %s without a token', async (method, path) => {

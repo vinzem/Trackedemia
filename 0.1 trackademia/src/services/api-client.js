@@ -47,11 +47,8 @@ async function send(method, path, { body, query, signal, retry = true } = {}) {
   try {
     response = await exec(await accessToken());
     if (response.status === 401 && retry) {
-      const payload = await response.clone().json().catch(() => ({}));
-      if (!String(payload?.error?.code || '').startsWith('calendar_')) {
-        const fresh = await accessToken({ refresh: true });
-        if (fresh) response = await exec(fresh);
-      }
+      const fresh = await accessToken({ refresh: true });
+      if (fresh) response = await exec(fresh);
     }
   } catch (error) {
     if (error.name === 'AbortError') throw error;

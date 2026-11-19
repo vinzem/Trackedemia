@@ -42,6 +42,17 @@ export function localFieldsFromInstants({ start_datetime: start, end_datetime: e
   };
 }
 
+/** True for reminders dated today through `days` calendar days from today. */
+export function isDueWithinDays(reminder, { days = 2, now = DateTime.now() } = {}) {
+  const zone = reminder.timezone || 'local';
+  const startDate = reminder.local?.start_date || localFieldsFromInstants(reminder).start_date;
+  const due = DateTime.fromISO(startDate || '', { zone }).startOf('day');
+  const today = now.setZone(zone).startOf('day');
+  if (!due.isValid || !today.isValid) return false;
+  const dueDate = due.toISODate();
+  return dueDate >= today.toISODate() && dueDate <= today.plus({ days }).toISODate();
+}
+
 /** Relative "edited 5 min ago" style labels. */
 export function formatRelative(iso) {
   if (!iso) return '';

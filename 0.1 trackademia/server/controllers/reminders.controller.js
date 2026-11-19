@@ -13,12 +13,8 @@ export function createRemindersController({ reminders }) {
     async update(req, res) {
       res.json({ data: await reminders.update(req.db, req.user, req.valid.params.id, req.valid.body) });
     },
-    async sync(req, res) {
-      res.json({ data: await reminders.sync(req.db, req.user, req.valid.params.id) });
-    },
     async remove(req, res) {
-      const keepEvent = req.query.keep_event === 'true';
-      res.json({ data: await reminders.remove(req.db, req.user, req.valid.params.id, { keepEvent }) });
+      res.json({ data: await reminders.remove(req.db, req.user, req.valid.params.id) });
     },
   };
 }

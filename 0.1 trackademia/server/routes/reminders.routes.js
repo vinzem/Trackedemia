@@ -12,7 +12,6 @@ export function remindersRoutes({ requireAuth, limits, services }) {
   router.post('/', validate({ body: reminderCreate }), h(c.create));
   router.get('/:id', validate({ params: idParams }), h(c.get));
   router.patch('/:id', validate({ params: idParams, body: reminderUpdate }), h(c.update));
-  router.post('/:id/sync', validate({ params: idParams }), h(c.sync));
   router.delete('/:id', validate({ params: idParams }), h(c.remove));
   return router;
 }

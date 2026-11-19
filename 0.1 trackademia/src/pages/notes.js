@@ -78,8 +78,8 @@ export async function render(ctx) {
 
   async function loadPanel() {
     try {
-      const reminders = await listReminders({ from: new Date().toISOString(), limit: 10 });
-      mount(panelEl, upcomingPanel(reminders, { calendarConnected: getState().calendar.connected }));
+      const reminders = await listReminders({ from: new Date(Date.now() - 26 * 60 * 60 * 1000).toISOString(), limit: 10 });
+      mount(panelEl, upcomingPanel(reminders));
     } catch {
       panelEl.innerHTML = '';
     }

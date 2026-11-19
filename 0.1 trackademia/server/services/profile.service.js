@@ -1,7 +1,7 @@
 /** Profile / account settings stored in public.profiles (RLS: owner only). */
 import { fromDatabaseError } from '../utils/errors.js';
 
-const COLUMNS = 'id, display_name, timezone, default_calendar_id, default_calendar_name, ai_detection_enabled, created_at, updated_at';
+const COLUMNS = 'id, display_name, timezone, ai_detection_enabled, created_at, updated_at';
 
 export async function getProfile(db, user) {
   const { data, error } = await db.from('profiles').select(COLUMNS).eq('id', user.id).maybeSingle();

@@ -1,16 +1,10 @@
-/**
- * Reminder workflow: persists reminders and keeps them in sync with Google
- * Calendar through the calendar service. A reminder is only marked `synced`
- * after the Google API confirms the operation.
- */
+/** Reminder records are the source of truth for the user's first-party calendar. */
 import { DateTime } from 'luxon';
-import { AppError, badRequest, conflict, fromDatabaseError, notFound } from '../utils/errors.js';
+import { badRequest, conflict, fromDatabaseError, notFound } from '../utils/errors.js';
 import { hashKey } from '../utils/crypto.js';
 import { toEventWindow, toLocalFields } from '../utils/date-parser.js';
-import { eventIdForReminder, toGoogleEvent } from './google-calendar.service.js';
-import { getProfile } from './profile.service.js';
 
-const COLUMNS = 'id, user_id, note_id, event_title, event_description, start_datetime, end_datetime, all_day, timezone, calendar_id, calendar_name, google_event_id, google_event_link, status, sync_error, last_synced_at, source_text, created_at, updated_at';
+const COLUMNS = 'id, user_id, note_id, event_title, event_description, start_datetime, end_datetime, all_day, timezone, source_text, created_at, updated_at';
 
 /** Adds local wall-clock fields so the UI does not have to convert timezones. */
 export function presentReminder(row) {
@@ -37,7 +31,7 @@ function windowOrThrow(input) {
   return window;
 }
 
-export function createRemindersService({ calendar, config, logger }) {
+export function createRemindersService() {
   async function fetchReminder(db, userId, id) {
     const { data, error } = await db.from('reminders').select(COLUMNS).eq('user_id', userId).eq('id', id).maybeSingle();
     if (error) throw fromDatabaseError(error, 'Reminder');
@@ -52,6 +46,10 @@ export function createRemindersService({ calendar, config, logger }) {
     return data;
   }
 
+  function normalizedTitle(value) {
+    return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  }
+
   async function assertNoteOwned(db, userId, noteId) {
     if (!noteId) return;
     const { data, error } = await db.from('notes').select('id').eq('user_id', userId).eq('id', noteId).maybeSingle();
@@ -59,92 +57,55 @@ export function createRemindersService({ calendar, config, logger }) {
     if (!data) throw notFound('Note');
   }
 
-  function eventBodyFor(row, { withId = false } = {}) {
-    const window = {
-      start: DateTime.fromISO(row.start_datetime, { zone: 'utc' }).setZone(row.timezone),
-      end: DateTime.fromISO(row.end_datetime, { zone: 'utc' }).setZone(row.timezone),
-    };
-    return toGoogleEvent({
-      id: withId ? eventIdForReminder(row.id) : undefined,
-      title: row.event_title,
-      description: row.event_description,
-      start: window.start,
-      end: window.end,
-      allDay: row.all_day,
-      timezone: row.timezone,
-      reminderId: row.id,
-      noteId: row.note_id,
-      appUrl: config.appUrl,
-    });
+  async function includeNotes(db, userId, rows) {
+    const noteIds = [...new Set(rows.map((row) => row.note_id).filter(Boolean))];
+    if (!noteIds.length) return rows.map((row) => ({ ...row, note: null }));
+    const { data, error } = await db.from('notes').select('id, title, content').eq('user_id', userId).in('id', noteIds);
+    if (error) throw fromDatabaseError(error, 'Note');
+    const notes = new Map((data || []).map((note) => [note.id, {
+      id: note.id,
+      title: note.title,
+      preview: String(note.content || '').trim().slice(0, 320),
+    }]));
+    return rows.map((row) => ({ ...row, note: notes.get(row.note_id) || null }));
   }
 
-  /** Pushes a reminder to Google Calendar, recording success or failure. */
-  async function pushToCalendar(db, userId, row) {
-    if (!row.calendar_id) throw new AppError('Choose a Google Calendar first.', { status: 400, code: 'calendar_required', recovery: 'choose_calendar' });
-    await writeReminder(db, userId, row.id, { status: 'syncing', sync_error: null });
-    try {
-      let event;
-      if (row.google_event_id) {
-        try {
-          event = await calendar.updateEvent(userId, row.calendar_id, row.google_event_id, eventBodyFor(row));
-        } catch (error) {
-          if (error.code !== 'calendar_event_not_found') throw error;
-          ({ event } = await calendar.createEvent(userId, row.calendar_id, eventBodyFor(row, { withId: true })));
-        }
-      } else {
-        ({ event } = await calendar.createEvent(userId, row.calendar_id, eventBodyFor(row, { withId: true })));
-      }
-      if (!event?.id) throw new AppError('Google Calendar did not confirm the event.', { status: 502, code: 'calendar_unconfirmed', retryable: true, recovery: 'retry' });
-      return await writeReminder(db, userId, row.id, {
-        status: 'synced',
-        google_event_id: event.id,
-        google_event_link: event.htmlLink || null,
-        last_synced_at: new Date().toISOString(),
-        sync_error: null,
-      });
-    } catch (error) {
-      const message = error instanceof AppError ? error.message : 'Calendar sync failed.';
-      await writeReminder(db, userId, row.id, { status: 'failed', sync_error: message.slice(0, 500) }).catch(() => {});
-      logger?.warn('reminder_sync_failed', { user: userId, reminder: row.id, error_code: error.code });
-      throw error;
-    }
+  async function presentWithNotes(db, userId, rows) {
+    const withNotes = await includeNotes(db, userId, rows);
+    return withNotes.map((row) => presentReminder({ ...row, status: 'saved' }));
   }
 
   return {
-    async list(db, userId, { note_id: noteId, status, from, limit = 100 } = {}) {
+    async list(db, userId, { note_id: noteId, from, to, limit = 100 } = {}) {
       let query = db.from('reminders').select(COLUMNS).eq('user_id', userId);
       if (noteId) query = query.eq('note_id', noteId);
-      if (status) query = query.eq('status', status);
       if (from) query = query.gte('start_datetime', from);
+      if (to) query = query.lte('start_datetime', to);
       const { data, error } = await query.order('start_datetime', { ascending: true }).limit(limit);
       if (error) throw fromDatabaseError(error, 'Reminders');
-      return (data || []).map(presentReminder);
+      return presentWithNotes(db, userId, data || []);
     },
 
     async get(db, userId, id) {
-      return presentReminder(await fetchReminder(db, userId, id));
+      return (await presentWithNotes(db, userId, [await fetchReminder(db, userId, id)]))[0];
     },
 
     /**
-     * Creates a reminder and (by default) the Google Calendar event.
-     * Duplicate attempts for the same note/title/start return 409 with the
-     * existing reminder so the client can show it instead of creating another.
+     * Saves an event to the user's calendar. Duplicate attempts for the same
+     * note/title/start return 409 with the existing reminder.
      */
     async create(db, user, input) {
       const userId = user.id;
       await assertNoteOwned(db, userId, input.note_id);
       const window = windowOrThrow(input);
-      const profile = await getProfile(db, user);
-      const calendarId = input.calendar_id || profile.default_calendar_id || null;
-      const calendarName = input.calendar_id ? (input.calendar_name || null) : (profile.default_calendar_name || null);
-      if (input.sync && !calendarId) throw new AppError('Choose a Google Calendar first.', { status: 400, code: 'calendar_required', recovery: 'choose_calendar' });
 
       const dedupeKey = dedupeKeyFor({ noteId: input.note_id, title: input.event_title, start: window.start });
       const { data: existing, error: lookupError } = await db.from('reminders').select(COLUMNS)
         .eq('user_id', userId).eq('dedupe_key', dedupeKey).maybeSingle();
       if (lookupError) throw fromDatabaseError(lookupError, 'Reminder');
       if (existing) {
-        throw conflict('A reminder for this event already exists.', { reminder: presentReminder(existing) });
+        const [reminder] = await presentWithNotes(db, userId, [existing]);
+        throw conflict('A reminder for this event already exists.', { reminder });
       }
 
       const { data: row, error } = await db.from('reminders').insert({
@@ -156,8 +117,6 @@ export function createRemindersService({ calendar, config, logger }) {
         end_datetime: window.end.toUTC().toISO(),
         all_day: window.allDay,
         timezone: input.timezone,
-        calendar_id: calendarId,
-        calendar_name: calendarName,
         source_text: input.source_text || null,
         dedupe_key: dedupeKey,
         status: 'pending',
@@ -166,11 +125,10 @@ export function createRemindersService({ calendar, config, logger }) {
         if (error.code === '23505') throw conflict('A reminder for this event already exists.');
         throw fromDatabaseError(error, 'Reminder');
       }
-      if (!input.sync) return presentReminder(row);
-      return presentReminder(await pushToCalendar(db, userId, row));
+      return (await presentWithNotes(db, userId, [row]))[0];
     },
 
-    /** Updates reminder fields and mirrors the change to Google Calendar. */
+    /** Updates a saved calendar event. */
     async update(db, user, id, patch) {
       const userId = user.id;
       const current = await fetchReminder(db, userId, id);
@@ -189,25 +147,13 @@ export function createRemindersService({ calendar, config, logger }) {
       const changes = {
         event_title: title,
         event_description: patch.event_description !== undefined ? patch.event_description : current.event_description,
+        source_text: patch.source_text !== undefined ? patch.source_text : current.source_text,
         start_datetime: window.start.toUTC().toISO(),
         end_datetime: window.end.toUTC().toISO(),
         all_day: window.allDay,
         timezone: merged.timezone,
         dedupe_key: dedupeKeyFor({ noteId: current.note_id, title, start: window.start }),
       };
-
-      const movingCalendar = patch.calendar_id && patch.calendar_id !== current.calendar_id;
-      if (movingCalendar && current.google_event_id) {
-        // Move = delete from the old calendar, then create in the new one.
-        await calendar.deleteEvent(userId, current.calendar_id, current.google_event_id);
-        changes.google_event_id = null;
-        changes.google_event_link = null;
-        changes.status = 'pending';
-      }
-      if (patch.calendar_id !== undefined) {
-        changes.calendar_id = patch.calendar_id;
-        changes.calendar_name = patch.calendar_name ?? null;
-      }
 
       let updated;
       try {
@@ -216,55 +162,74 @@ export function createRemindersService({ calendar, config, logger }) {
         if (error.status === 409) throw conflict('Another reminder already exists for that time.');
         throw error;
       }
-      const shouldSync = updated.calendar_id && (current.status === 'synced' || current.status === 'failed' || movingCalendar || current.google_event_id);
-      if (!shouldSync) return presentReminder(updated);
-      return presentReminder(await pushToCalendar(db, userId, updated));
+      return (await presentWithNotes(db, userId, [updated]))[0];
     },
 
-    /** Retries (or performs the first) sync of a reminder to Google Calendar. */
-    async sync(db, user, id) {
-      const row = await fetchReminder(db, user.id, id);
-      return presentReminder(await pushToCalendar(db, user.id, row));
-    },
+    /** Keeps note-linked calendar events aligned with the note's detected dates. */
+    async syncNoteEvents(db, user, note, detectedEvents, timezone) {
+      const { data: linked, error } = await db.from('reminders').select(COLUMNS)
+        .eq('user_id', user.id).eq('note_id', note.id).order('start_datetime', { ascending: true });
+      if (error) throw fromDatabaseError(error, 'Reminders');
 
-    /** Fetches the live Google event for a synced reminder. */
-    async getCalendarEvent(db, user, id) {
-      const row = await fetchReminder(db, user.id, id);
-      if (!row.google_event_id) throw new AppError('This reminder is not on Google Calendar yet.', { status: 409, code: 'not_synced', recovery: 'retry' });
-      const event = await calendar.getEvent(user.id, row.calendar_id, row.google_event_id);
-      return { reminder: presentReminder(row), event: { id: event.id, status: event.status, summary: event.summary, start: event.start, end: event.end, html_link: event.htmlLink, updated: event.updated } };
-    },
+      const candidates = detectedEvents.filter((event) => event.start_date && !event.is_past
+        && !event.clarification && !event.time_hint);
+      const unmatched = new Set((linked || []).map((row) => row.id));
+      const assignments = new Map();
+      const remaining = [...candidates];
 
-    /** Removes the Google event but keeps the reminder (status back to pending). */
-    async unlinkCalendarEvent(db, user, id) {
-      const row = await fetchReminder(db, user.id, id);
-      if (row.google_event_id) await calendar.deleteEvent(user.id, row.calendar_id, row.google_event_id);
-      return presentReminder(await writeReminder(db, user.id, id, {
-        google_event_id: null, google_event_link: null, status: 'pending', sync_error: null,
-      }));
-    },
-
-    /**
-     * Deletes the reminder. The Google event is deleted first; if Google
-     * fails, the reminder is kept so nothing is orphaned silently.
-     * Pass `keepEvent` to only remove the association.
-     */
-    async remove(db, user, id, { keepEvent = false } = {}) {
-      const row = await fetchReminder(db, user.id, id);
-      let calendarResult = null;
-      if (row.google_event_id && !keepEvent) {
-        try {
-          calendarResult = await calendar.deleteEvent(user.id, row.calendar_id, row.google_event_id);
-        } catch (error) {
-          if (error.code !== 'calendar_not_connected' && error.code !== 'calendar_reauth_required') throw error;
-          throw new AppError('Reconnect Google Calendar to delete the event, or remove only the reminder.', {
-            status: error.status, code: error.code, recovery: 'connect_calendar', details: { can_keep_event: true },
-          });
+      for (const event of candidates) {
+        const row = (linked || []).find((item) => unmatched.has(item.id)
+          && item.source_text && item.source_text === event.source_text);
+        if (row) {
+          assignments.set(event, row);
+          unmatched.delete(row.id);
+          remaining.splice(remaining.indexOf(event), 1);
         }
       }
+      for (const event of [...remaining]) {
+        const title = normalizedTitle(event.event_title);
+        const row = (linked || []).find((item) => unmatched.has(item.id)
+          && normalizedTitle(item.event_title) === title);
+        if (row) {
+          assignments.set(event, row);
+          unmatched.delete(row.id);
+          remaining.splice(remaining.indexOf(event), 1);
+        }
+      }
+      if (remaining.length === 1 && unmatched.size === 1) {
+        const row = (linked || []).find((item) => unmatched.has(item.id));
+        assignments.set(remaining[0], row);
+        unmatched.delete(row.id);
+        remaining.length = 0;
+      }
+
+      for (const event of candidates) {
+        const input = {
+          event_title: (event.event_title || 'Calendar event').slice(0, 200),
+          event_description: event.event_description ? event.event_description.slice(0, 5000) : null,
+          start_date: event.start_date,
+          start_time: event.start_time || null,
+          end_date: event.end_date || null,
+          end_time: event.end_time || null,
+          all_day: !event.start_time,
+          timezone: event.timezone || timezone,
+          source_text: event.source_text ? event.source_text.slice(0, 500) : null,
+        };
+        const existing = assignments.get(event);
+        if (existing) await this.update(db, user, existing.id, input);
+        else await this.create(db, user, { ...input, note_id: note.id });
+      }
+
+      for (const row of linked || []) {
+        if (unmatched.has(row.id)) await this.remove(db, user, row.id);
+      }
+    },
+
+    async remove(db, user, id) {
+      await fetchReminder(db, user.id, id);
       const { error } = await db.from('reminders').delete().eq('user_id', user.id).eq('id', id);
       if (error) throw fromDatabaseError(error, 'Reminder');
-      return { id, calendar_event_deleted: Boolean(calendarResult?.deleted), event_kept: keepEvent && Boolean(row.google_event_id) };
+      return { id };
     },
   };
 }

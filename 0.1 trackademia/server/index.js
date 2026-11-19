@@ -15,7 +15,6 @@ try {
 const database = createDatabase(config);
 if (!config.features.database) logger.warn('supabase_not_configured', { hint: 'Set SUPABASE_URL, SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY.' });
 if (!config.features.ai) logger.warn('openai_not_configured', { hint: 'Deterministic date parsing will be used.' });
-if (!config.features.google) logger.warn('google_not_configured', { hint: 'Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and ENCRYPTION_KEY.' });
 
 const services = buildServices({ config, database, logger });
 const app = createApp({ config, services, logger });

@@ -119,6 +119,8 @@ export async function render(ctx) {
     onStatus: setStatus,
     onSaved: (saved) => {
       note = saved;
+      reminders = saved.reminders || [];
+      drawDetection();
       if (!editing && window.location.pathname === '/notes/new') {
         // Keep the editor open but give it a stable URL once the note exists.
         window.history.replaceState({}, '', `/notes/${saved.id}/edit`);
@@ -214,9 +216,19 @@ export async function render(ctx) {
   async function review(index) {
     const event = visibleEvents()[index];
     if (!event || reminders.some((r) => r.source_text && r.source_text === event.source_text)) return;
+    let savedNote;
+    try {
+      savedNote = await ensureNote();
+      reminders = savedNote.reminders || reminders;
+      drawDetection();
+      if (reminders.some((r) => r.source_text && r.source_text === event.source_text)) return;
+    } catch (error) {
+      toast.error('Could not save note', { detail: error.message });
+      return;
+    }
     await confirmDetectedEvent({
       event,
-      ensureNote,
+      ensureNote: async () => savedNote,
       onDismiss: () => {
         dismissed.add(event.source_text);
         storage.set(dismissedKey(session.note?.id), [...dismissed]);
@@ -227,12 +239,11 @@ export async function render(ctx) {
         drawDetection();
         if (meta.duplicate && !meta.retried) return;
         showSuccess(reminder);
-        toast.success('Added to Google Calendar', {
+        toast.success('Added to your calendar', {
           detail: reminder.event_title,
           duration: UNDO_WINDOW_MS,
           actions: [
             { label: 'Undo', onClick: () => undo(reminder) },
-            ...(reminder.google_event_link ? [{ label: 'Open', href: reminder.google_event_link }] : []),
           ],
         });
       },
@@ -311,7 +322,13 @@ export async function render(ctx) {
         if (saved) toast.success('Note saved');
       } catch { /* status shows the error */ } finally { restore(); }
     } else if (action === 'review-event') {
-      review(Number(target.dataset.index));
+      const index = Number(target.dataset.index);
+      const selected = visibleEvents()[index];
+      if (selected && reminders.some((reminder) => reminder.source_text && reminder.source_text === selected.source_text)) {
+        await navigate('/calendar');
+      } else {
+        review(index);
+      }
     } else if (action === 'detect') {
       await detector.analyzeNow(contentEl.value);
       const events = visibleEvents().filter((e) => !reminders.some((r) => r.source_text === e.source_text));

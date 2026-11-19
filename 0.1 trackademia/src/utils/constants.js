@@ -22,10 +22,11 @@ export const NOTE_SORTS = [
 ];
 
 export const REMINDER_STATUS = Object.freeze({
-  pending: { label: 'Not synced', tone: 'neutral' },
-  syncing: { label: 'Syncing…', tone: 'neutral' },
-  synced: { label: 'On Google Calendar', tone: 'success' },
-  failed: { label: 'Sync failed', tone: 'error' },
+  saved: { label: 'Saved', tone: 'success' },
+  pending: { label: 'Saved', tone: 'success' },
+  syncing: { label: 'Saved', tone: 'success' },
+  synced: { label: 'Saved', tone: 'success' },
+  failed: { label: 'Saved', tone: 'success' },
 });
 
 export const LIMITS = Object.freeze({ title: 200, content: 50000, eventTitle: 200, description: 5000 });

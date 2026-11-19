@@ -95,18 +95,6 @@ const mockAuth = (() => {
         emit('SIGNED_IN', session);
         return { data: { session, user: session.user }, error: null };
       },
-      async signInWithOAuth({ provider }) {
-        const user = {
-          id: `dev-google-${Math.random().toString(36).slice(2, 8)}`,
-          email: 'google-user@example.com',
-          name: 'Google user',
-          provider,
-        };
-        const session = mockSessionForUser(user);
-        writeJson(storageKey, session);
-        emit('SIGNED_IN', session);
-        return { data: { session, user: session.user }, error: null };
-      },
       async resend() {
         return { data: {}, error: null };
       },
@@ -125,7 +113,8 @@ const mockAuth = (() => {
         return { data: { user: session.user }, error: null };
       },
       async exchangeCodeForSession() {
-        const session = readJson(storageKey, null) || mockSessionForUser({ email: 'google-user@example.com', name: 'Google user', provider: 'google' });
+        const session = readJson(storageKey, null);
+        if (!session) return { data: { session: null, user: null }, error: { message: 'No active session.', code: 'no_session' } };
         writeJson(storageKey, session);
         emit('SIGNED_IN', session);
         return { data: { session, user: session.user }, error: null };

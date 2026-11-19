@@ -1,5 +1,6 @@
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { toLocalFields } from '../../server/utils/date-parser.js';
 import { createTestContext } from '../helpers/test-app.js';
 
 describe('notes API', () => {
@@ -14,17 +15,41 @@ describe('notes API', () => {
 
   const create = (user, body) => request(ctx.app).post('/api/notes').set(user.auth).send(body);
 
-  it('creates, reads, edits and deletes a note', async () => {
-    const created = await create(alice, { title: 'Thesis', content: 'Draft due next Monday at 3pm' }).expect(201);
+  it('automatically creates and reschedules linked calendar events when a note is saved', async () => {
+    const created = await create(alice, {
+      title: 'Thesis',
+      content: 'Draft due 2099-12-09',
+      timezone: 'Asia/Manila',
+    }).expect(201);
     const { id } = created.body.data;
-    expect(created.body.data).toMatchObject({ title: 'Thesis', user_id: alice.id, reminders: [] });
+    expect(created.body.data).toMatchObject({ title: 'Thesis', user_id: alice.id });
+    expect(created.body.data.reminders).toHaveLength(1);
+    expect(created.body.data.reminders[0]).toMatchObject({
+      note_id: id,
+      event_title: 'Draft',
+      all_day: true,
+      timezone: 'Asia/Manila',
+      source_text: '2099-12-09',
+    });
+    expect(toLocalFields(created.body.data.reminders[0]).start_date).toBe('2099-12-09');
 
     const fetched = await request(ctx.app).get(`/api/notes/${id}`).set(alice.auth).expect(200);
-    expect(fetched.body.data.content).toContain('next Monday');
+    expect(fetched.body.data.content).toContain('2099-12-09');
 
-    const edited = await request(ctx.app).patch(`/api/notes/${id}`).set(alice.auth).send({ content: 'Updated' }).expect(200);
-    expect(edited.body.data.content).toBe('Updated');
+    const reminderId = created.body.data.reminders[0].id;
+    const edited = await request(ctx.app).patch(`/api/notes/${id}`).set(alice.auth)
+      .send({ content: 'Draft due 2099-11-21', timezone: 'Asia/Manila' }).expect(200);
+    expect(edited.body.data.content).toContain('2099-11-21');
     expect(edited.body.data.title).toBe('Thesis');
+    expect(edited.body.data.reminders).toHaveLength(1);
+    expect(edited.body.data.reminders[0]).toMatchObject({
+      id: reminderId,
+    });
+    expect(toLocalFields(edited.body.data.reminders[0]).start_date).toBe('2099-11-21');
+
+    const noDate = await request(ctx.app).patch(`/api/notes/${id}`).set(alice.auth)
+      .send({ content: 'Updated', timezone: 'Asia/Manila' }).expect(200);
+    expect(noDate.body.data.reminders).toEqual([]);
 
     await request(ctx.app).delete(`/api/notes/${id}`).set(alice.auth).expect(200);
     await request(ctx.app).get(`/api/notes/${id}`).set(alice.auth).expect(404);
