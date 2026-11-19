@@ -1,7 +1,0 @@
-@tailwind base; @tailwind components; @tailwind utilities;
-body { @apply bg-page text-ink font-sans; }
-.logo { @apply font-logo font-black uppercase text-[#0B2A6B]; text-shadow: 2px 2px 0 #2563EB; }
-.date-hl { background: #B9D3FF; border-radius: 4px; padding: 0 2px; }
-.ProseMirror { outline: none; min-height: 50vh; }
-.ProseMirror p { margin: 0 0 .6em; }
-.btn { @apply rounded-lg px-4 py-2 text-sm font-medium; }

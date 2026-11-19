@@ -1,1 +1,0 @@
-export default { content: ['./index.html', './src/**/*.{ts,tsx}'], theme: { extend: { colors: { primary: '#2563EB', soft: '#CFE2FF', page: '#D4E4FC', side: '#F4F8FF', ink: '#172033', muted: '#7B8BA5', line: '#DCE5F2' }, fontFamily: { sans: ['"DM Sans"', 'system-ui', 'sans-serif'], logo: ['Fraunces', 'Georgia', 'serif'] } } } };
